@@ -17,20 +17,21 @@ let addFile (container: BlobContainerClient) path file =
     let blob = container.GetBlobClient file
     Fs.readFile path file
     >>= Az.uploadContent blob
-    >>= (fun _ -> blob.Name |> MimeTypes.getFileContentType |> Az.setContentType blob)
+    >>= (fun info -> blob.Name |> MimeTypes.getFileContentType |> Az.setProperties blob info.ContentHash)
     <!> (fun _ -> $"{file} added")
 
 let updateBlob (container: BlobContainerClient) path (item: BlobItem) =
     result {
         let! bytes = Fs.readFile path item.Name
-        if Fs.md5 bytes = item.Properties.ContentHash then
+        let md5Hash = Fs.md5 bytes
+        if md5Hash = item.Properties.ContentHash then
             return $"{item.Name} equal"
         else
             let blob = container.GetBlobClient item.Name
             return!
                 Az.removeContent blob
                 >>= (fun _ -> Az.uploadContent blob bytes)
-                >>= (fun _ -> blob.Name |> MimeTypes.getFileContentType |> Az.setContentType blob)
+                >>= (fun info -> blob.Name |> MimeTypes.getFileContentType |> Az.setProperties blob info.ContentHash)
                 <!> (fun _ -> $"{item.Name} updated")
     }
 

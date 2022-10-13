@@ -25,10 +25,11 @@ module Az =
 
     let removeContent (blob: BlobClient) = tryCatch blob.Delete ()
 
-    let setContentType (blob: BlobClient) contentType =
+    let setProperties (blob: BlobClient) hash contentType =
         fun _ ->
             let headers = BlobHttpHeaders()
             headers.ContentType <- contentType
+            headers.ContentHash <- hash
             blob.SetHttpHeaders headers |> ignore
             blob
         |> flip tryCatch ()
