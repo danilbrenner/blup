@@ -29,16 +29,16 @@ module App =
             |> logResult
             |> resultToExit
         | [ "help" ] ->
-            logSuccess "Usage:  dotnet blup COMMAND [ARGUMENTS]"
+            logSuccess "Usage: blup COMMAND [ARGUMENTS]"
             logSuccess "Commands:"
             logSuccess "  ups       Add or update blob storage settings"
-            logSuccess "            Usage: dotnet blup ups %name% %container name% %blob account connection string%"
+            logSuccess "            Usage: blup ups %name% %container name% %blob account connection string%"
             logSuccess "  rm        Remove blob storage settings"
-            logSuccess "            Usage: dotnet blup rem %name%"
+            logSuccess "            Usage: blup rem %name%"
             logSuccess "  ls        List all registered blob storage settings"
-            logSuccess "            Usage: dotnet blup list"
+            logSuccess "            Usage: blup list"
             logSuccess "  sync      Sync local directory with blob storage"
-            logSuccess "            Usage: dotnet blup sync %name% %src path%"
+            logSuccess "            Usage: blup sync %name% %src path%"
             0
         | [ "sync"; name; path ] ->
             Config.getConfig Config.localPath
