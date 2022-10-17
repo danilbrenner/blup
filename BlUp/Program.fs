@@ -1,83 +1,57 @@
-﻿open System
-open Azure.Storage.Blobs
-open Azure.Storage.Blobs.Models
-open BlUp
+﻿namespace BlUp
 
-type AzureSettings =
-    { storageConnString: string
-      containerName: string
-      basePath: string }
+open BlUp.Up
+open MBrace.FsPickler
 
-let settings =
-    { storageConnString = ""
-      containerName = ""
-      basePath = "" }
-
-let addFile (container: BlobContainerClient) path file =
-    let blob = container.GetBlobClient file
-    Fs.readFile path file
-    >>= Az.uploadContent blob
-    >>= (fun info -> blob.Name |> MimeTypes.getFileContentType |> Az.setProperties blob info.ContentHash)
-    <!> (fun _ -> $"{file} added")
-
-let updateBlob (container: BlobContainerClient) path (item: BlobItem) =
-    result {
-        let! bytes = Fs.readFile path item.Name
-        let md5Hash = Fs.md5 bytes
-        if md5Hash = item.Properties.ContentHash then
-            return $"{item.Name} equal"
-        else
-            let blob = container.GetBlobClient item.Name
-            return!
-                Az.removeContent blob
-                >>= (fun _ -> Az.uploadContent blob bytes)
-                >>= (fun info -> blob.Name |> MimeTypes.getFileContentType |> Az.setProperties blob info.ContentHash)
-                <!> (fun _ -> $"{item.Name} updated")
-    }
-
-let logResult =
-    function
-        | Ok msg ->
-            Console.ForegroundColor <- ConsoleColor.Green
-            printfn $"%s{msg}"
-            Console.ResetColor()
-        | Error msg ->
-            Console.ForegroundColor <- ConsoleColor.Red
-            printfn $"%s{msg}"
-            Console.ResetColor()
-
-let removeBlob (container: BlobContainerClient) (item: BlobItem) =
-    item.Name
-    |> container.GetBlobClient
-    |> Az.removeContent
-    <!> (fun _ -> $"{item.Name} removed")
+module App =
     
-match Fs.listFiles settings.basePath, Az.createContainer settings.storageConnString settings.containerName with
-| Ok list, Ok container ->
-    let blobs =
-        container.GetBlobs()
-        |> Seq.filter (fun itm -> itm.Deleted |> not)
-        |> Seq.toArray
-        |> Array.sortBy (fun i -> i.Name)
-
-    let files = list |> Array.sortBy id
-
-    let toAdd, toUpdate, toRemove =
-        MergeJoin.mj id (fun (b: BlobItem) -> b.Name) files blobs
-
-    toAdd
-    |> List.iter (addFile container settings.basePath >> logResult)
+    let resultToExit = both (fun _ -> 0) (fun _ -> 1) 
     
-    toUpdate
-    |> List.iter (snd >> (updateBlob container settings.basePath) >> logResult)
-    
-    toRemove
-    |> List.iter (removeBlob container >> logResult)
-    
-    exit 0
-| Error err, Ok _ ->
-    err |> Error |> logResult
-    exit 1
-| _, Error err ->
-    err |> Error |> logResult
-    exit 1
+    [<EntryPoint>]
+    let main argv =
+        match argv |> Array.toList with
+        | "ups"::[ name; containerName; connectionString ] ->
+            Az.createContainer connectionString containerName
+            <!> (fun _ -> Config.getConfig Config.localPath)
+            <!> (Map.add name { storageConnString = connectionString; containerName = containerName })
+            >>= Config.saveConfig Config.localPath
+            |> logResult
+            |> resultToExit
+        | [ "ls" ] -> 
+            Config.getConfig Config.localPath
+            |> Map.keys
+            |> Seq.iter logSuccess
+            0
+        | [ "rm"; name ] ->
+            Config.getConfig Config.localPath
+            |> Map.remove name
+            |> Config.saveConfig Config.localPath
+            |> logResult
+            |> resultToExit
+        | [ "help" ] ->
+            logSuccess "Usage:  dotnet blup COMMAND [ARGUMENTS]"
+            logSuccess "Commands:"
+            logSuccess "  ups       Add or update blob storage settings"
+            logSuccess "            Usage: dotnet blup ups %name% %container name% %blob account connection string%"
+            logSuccess "  rm        Remove blob storage settings"
+            logSuccess "            Usage: dotnet blup rem %name%"
+            logSuccess "  ls        List all registered blob storage settings"
+            logSuccess "            Usage: dotnet blup list"
+            logSuccess "  sync      Sync local directory with blob storage"
+            logSuccess "            Usage: dotnet blup sync %name% %src path%"
+            0
+        | [ "sync"; name; path ] ->
+            Config.getConfig Config.localPath
+            |> Map.tryFind name
+            |> ofOption $"Blob account %s{name} not found."
+            >>= sync path
+            |> logResult
+            |> resultToExit
+        | cmd::_ ->
+            logError $"'%s{cmd}' is not a valid command."
+            logError "See 'blup help'"
+            1
+        | [] ->
+            logError "No valid command passed."
+            logError "See 'blup help'"
+            1
