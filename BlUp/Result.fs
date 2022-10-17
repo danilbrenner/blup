@@ -9,8 +9,17 @@ module Result =
 
     let (>>=) v f = Result.bind f v
     
+    let tee f =
+        function
+        | Ok v ->
+            f v
+            Ok v
+        | Error v -> Error v
+    
     let ofOption error = function Some s -> Ok s | None -> Error error
-
+    
+    let both okf errf = function Ok v -> okf v | Error v -> errf v
+    
     type ResultBuilder() =
         member _.Return(x) = Ok x
 
