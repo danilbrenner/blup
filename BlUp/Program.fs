@@ -4,23 +4,28 @@ open BlUp.Up
 open MBrace.FsPickler
 
 module App =
-    
-    let resultToExit = both (fun _ -> 0) (fun _ -> 1) 
-    
+
+    let resultToExit =
+        both (fun _ -> 0) (fun _ -> 1)
+
     [<EntryPoint>]
     let main argv =
         match argv |> Array.toList with
-        | "ups"::[ name; containerName; connectionString ] ->
+        | "ups" :: [ name; containerName; connectionString ] ->
             Az.createContainer connectionString containerName
             <!> (fun _ -> Config.getConfig Config.localPath)
-            <!> (Map.add name { storageConnString = connectionString; containerName = containerName })
+            <!> (Map.add
+                     name
+                     { storageConnString = connectionString
+                       containerName = containerName })
             >>= Config.saveConfig Config.localPath
             |> logResult
             |> resultToExit
-        | [ "ls" ] -> 
+        | [ "ls" ] ->
             Config.getConfig Config.localPath
             |> Map.keys
             |> Seq.iter logSuccess
+
             0
         | [ "rm"; name ] ->
             Config.getConfig Config.localPath
@@ -47,7 +52,7 @@ module App =
             >>= sync path
             |> logResult
             |> resultToExit
-        | cmd::_ ->
+        | cmd :: _ ->
             logError $"'%s{cmd}' is not a valid command."
             logError "See 'blup help'"
             1

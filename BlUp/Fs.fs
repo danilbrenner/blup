@@ -16,13 +16,13 @@ module Fs =
         fileStream.CopyTo(memoryStream)
         fileStream.Close()
         memoryStream.ToArray()
-    
+
     let readFile path = readFileInternal path |> tryCatch
-    
+
     let writeFile fPath =
         (fun bytes -> File.WriteAllBytes(fPath, bytes))
         |> tryCatch
-        
+
     let private listFilesInternal path =
         Directory.GetFiles(path, "*", SearchOption.AllDirectories)
         |> Array.map (fun s -> s.Remove(0, path.Length + 1))
